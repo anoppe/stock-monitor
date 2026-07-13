@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  stock-monitor:
+    build: .
+    container_name: stock-monitor
+    restart: unless-stopped
+    
+    environment:
+      # InfluxDB Configuration
+      INFLUXDB_URL: ${INFLUXDB_URL}
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN}
+      INFLUXDB_ORG: ${INFLUXDB_ORG}
+      INFLUXDB_BUCKET: ${INFLUXDB_BUCKET}
+      
+      # Fund Configuration
+      FUND_API_URL: ${FUND_API_URL:-https://devrobotapi.azurewebsites.net/v1/fundrates}
+      FUND_ID: ${FUND_ID:-8015}
+      FUND_NAME: ${FUND_NAME:-BND_Wereld_Indexfonds_Totaal_Carbon_Screened}
+      UNITS_HELD: ${UNITS_HELD:-12.0}
+      
+      # Scheduler Configuration
+      UPDATE_HOUR: ${UPDATE_HOUR:-12}
+      UPDATE_MINUTE: ${UPDATE_MINUTE:-0}
+      TIMEZONE: ${TIMEZONE:-Europe/Amsterdam}
+    
+    volumes:
+      # Mount logs directory for persistence
+      - ./logs:/app/logs
+    
+    # Health check (optional)
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "scheduler.py"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    
+    # Network mode (if InfluxDB is on the same Docker network)
+    # networks:
+    #   - monitoring
+    
+# Uncomment if you want to create a shared network with InfluxDB/Grafana
+# networks:
+#   monitoring:
+#     external: true

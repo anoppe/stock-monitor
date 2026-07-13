@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB-Stocks
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    jsonData:
+      version: Flux
+      organization: stock-monitor
+      defaultBucket: stocks
+      tlsSkipVerify: true
+    secureJsonData:
+      token: test-token-stock-monitor-12345
+    isDefault: true
+    editable: true

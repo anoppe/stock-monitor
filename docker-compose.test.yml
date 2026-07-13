@@ -1,0 +1,107 @@
+version: '3.8'
+
+# ⚠️  TEST ENVIRONMENT ONLY - NOT FOR PRODUCTION USE
+# This docker-compose file includes InfluxDB and Grafana with hardcoded test credentials.
+# For production deployment, use docker-compose.yml with your own .env file.
+# See DEPLOYMENT.md for production deployment instructions.
+
+networks:
+  monitoring:
+    driver: bridge
+
+volumes:
+  influxdb-data:
+  grafana-data:
+
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: stock-monitor-influxdb
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - ./influxdb-init:/docker-entrypoint-initdb.d
+    environment:
+      # Initial setup credentials
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword123
+      DOCKER_INFLUXDB_INIT_ORG: stock-monitor
+      DOCKER_INFLUXDB_INIT_BUCKET: stocks
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: test-token-stock-monitor-12345
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: stock-monitor-grafana
+    restart: unless-stopped
+    networks:
+      - monitoring
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-provisioning:/etc/grafana/provisioning
+    environment:
+      # Default credentials
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: ""
+      # Allow embedding
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      # Disable analytics
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  stock-monitor:
+    build: .
+    container_name: stock-monitor-app
+    restart: unless-stopped
+    networks:
+      - monitoring
+    environment:
+      # InfluxDB Configuration
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: test-token-stock-monitor-12345
+      INFLUXDB_ORG: stock-monitor
+      INFLUXDB_BUCKET: stocks
+      
+      # Fund Configuration
+      FUND_API_URL: https://devrobotapi.azurewebsites.net/v1/fundrates
+      FUND_ID: "8015"
+      FUND_NAME: BND_Wereld_Indexfonds_Totaal_Carbon_Screened
+      UNITS_HELD: "12.0"
+      
+      # Scheduler Configuration
+      UPDATE_HOUR: "12"
+      UPDATE_MINUTE: "0"
+      TIMEZONE: Europe/Amsterdam
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "scheduler.py"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
